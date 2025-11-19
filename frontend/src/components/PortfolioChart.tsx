@@ -13,7 +13,7 @@ import {
   TimeScale,
   Filler, // Importar Filler
 } from 'chart.js';
-import 'chartjs-adapter-date-fns';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(
   CategoryScale,
@@ -25,6 +25,7 @@ ChartJS.register(
   Legend,
   TimeScale,
   Filler, // Registrar Filler
+  ChartDataLabels, // Registrar o plugin de datalabels
 );
 
 const PortfolioChart = () => {
@@ -35,41 +36,70 @@ const PortfolioChart = () => {
     const [days, setDays] = useState<number>(7); // Estado para o período selecionado (em dias)
 
     useEffect(() => {
-        const fetchSnapshots = async () => {
+        const fetchChartData = async () => {
             try {
-                const response = await axios.get('/api/portfolio/snapshots', { params: { days } });
+                // Realiza as duas chamadas de API em paralelo
+                const [snapshotsResponse, portfolioResponse] = await Promise.all([
+                    axios.get('/api/portfolio/snapshots', { params: { days } }),
+                    axios.get('/api/portfolio/')
+                ]);
+
+                const snapshots = snapshotsResponse.data;
+                const currentPortfolioValue = portfolioResponse.data.total_value;
+
+                // Prepara os dados históricos
+                const labels = snapshots.map((s: any) => new Date(s.data).getTime());
+                const historicalData = snapshots.map((s: any) => s.valor_total);
+
+                // Adiciona o ponto de dados atual (ao vivo) ao final do gráfico
+                // Apenas se o período incluir "hoje"
+                if (days <= 30) { // Adiciona o ponto ao vivo para períodos de até 1 mês
+                    labels.push(new Date().getTime());
+                    historicalData.push(currentPortfolioValue);
+                }
+
                 const data = {
-                    labels: response.data.map((s: any) => new Date(s.data).getTime()), // Usar timestamp para TimeScale
+                    labels: labels,
                     datasets: [
                         {
                             label: 'Valor do Portfólio',
-                            data: response.data.map((s: any) => s.valor_total),
-                            fill: true, // Preencher a área abaixo da linha
+                            data: historicalData,
+                            fill: true,
                             borderColor: 'rgb(75, 192, 192)',
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)', // Cor de fundo da área
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
                             tension: 0.1,
-                            pointRadius: 0, // Remover pontos
+                            pointRadius: 0,
                         }
                     ]
                 };
                 setChartData(data);
             } catch (error) {
-                console.error('Error fetching portfolio snapshots', error);
+                console.error('Error fetching portfolio chart data', error);
             }
         };
-        fetchSnapshots();
+        fetchChartData();
     }, [days]); // Dependência 'days' para recarregar quando o período muda
 
     const options: any = { // Usar 'any' para evitar problemas de tipagem
         responsive: true,
         maintainAspectRatio: false,
+        layout: {
+            padding: {
+                top: 50, // Adiciona padding no topo para não cortar o datalabel
+                left: 30,
+                right: 30,
+            }
+        },
         plugins: {
             legend: {
                 labels: {
-                    color: '#e1e8ed',
+                    color: '#FFFFFF',
                 }
             },
             tooltip: {
+                backgroundColor: '#2c3e50', // Cor de fundo mais escura
+                titleColor: '#ecf0f1', // Cor do título
+                bodyColor: '#ecf0f1', // Cor do corpo
                 callbacks: {
                     label: function(context: any) {
                         let label = context.dataset.label || '';
@@ -77,10 +107,39 @@ const PortfolioChart = () => {
                             label += ': ';
                         }
                         if (context.parsed.y !== null) {
-                            label += '$' + context.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            // Formatação compacta para o tooltip
+                            label += new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                notation: 'compact',
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }).format(context.parsed.y);
                         }
                         return label;
                     }
+                }
+            },
+            datalabels: {
+                display: function(context: any) {
+                    // Exibe o datalabel apenas para o último ponto de dados
+                    return context.dataIndex === context.dataset.data.length - 1;
+                },
+                color: '#FFFFFF',
+                align: 'top',
+                offset: 8,
+                font: {
+                    weight: 'bold',
+                },
+                formatter: function(value: any, context: any) {
+                    // Formata o valor da mesma forma que o tooltip e o eixo Y
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        notation: 'compact',
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(value);
                 }
             }
         },
@@ -96,7 +155,7 @@ const PortfolioChart = () => {
                     }
                 },
                 ticks: {
-                    color: '#8899a6',
+                    color: '#FFFFFF',
                 },
                 grid: {
                     color: '#3a3a3a',
@@ -104,9 +163,14 @@ const PortfolioChart = () => {
             },
             y: {
                 ticks: {
-                    color: '#8899a6',
+                    color: '#FFFFFF',
                     callback: function(value: any) {
-                        return '$' + value.toLocaleString();
+                        // Formatação compacta para o eixo Y
+                        return new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            notation: 'compact'
+                        }).format(value);
                     },
                 },
                 grid: {
