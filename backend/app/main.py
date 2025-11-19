@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Union, Optional
@@ -131,6 +131,29 @@ def update_ativo(ativo_id: int, ativo: schemas.AtivoCreate, db: Session = Depend
     return db_ativo
 
 
+
+@app.get("/ativos/charts/bulk")
+def get_bulk_asset_chart_data(ids: List[str] = Query(...), days: Union[int, str] = 7):
+    """
+    Busca dados de gráfico para múltiplos ativos de uma vez.
+    As chamadas para a API externa são feitas sequencialmente no backend
+    para evitar rate limiting.
+    """
+    chart_data = {}
+    for asset_id in ids:
+        try:
+            # Reutiliza a lógica de busca e cache do endpoint individual
+            data = get_asset_chart_data(id_api_precos=asset_id, days=days)
+            chart_data[asset_id] = data
+            # Adiciona um pequeno delay para ser gentil com a API da CoinGecko
+            time.sleep(0.5)
+        except HTTPException as e:
+            # Se um ativo falhar, registra o erro e continua com os outros
+            print(f"Failed to fetch chart for {asset_id}: {e.detail}")
+            chart_data[asset_id] = None
+    return chart_data
+
+
 @app.get("/ativos/charts/{id_api_precos}")
 def get_asset_chart_data(id_api_precos: str, days: Union[int, str] = 7, interval: Optional[str] = None):
     # IDs que não funcionam com market_chart
@@ -163,8 +186,15 @@ def get_asset_chart_data(id_api_precos: str, days: Union[int, str] = 7, interval
                 print(f"Rate limit hit for {id_api_precos}. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
+                # Tenta extrair uma mensagem de erro mais detalhada da resposta da API
+                try:
+                    detail = e.response.json().get("error", "Failed to fetch chart data from external API")
+                except:
+                    detail = "Failed to fetch chart data from external API"
+                
                 print(f"Could not fetch chart data for {id_api_precos} (days={days}, interval={interval}): {e}")
-                raise HTTPException(status_code=500, detail="Failed to fetch chart data from external API")
+                # Encaminha o status code original do erro da API externa
+                raise HTTPException(status_code=e.response.status_code, detail=detail)
         except Exception as e:
             print(f"Could not fetch chart data for {id_api_precos} (days={days}, interval={interval}): {e}")
             raise HTTPException(status_code=500, detail="Failed to fetch chart data from external API")

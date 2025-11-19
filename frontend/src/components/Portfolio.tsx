@@ -38,19 +38,33 @@ const Portfolio: React.FC = () => {
                 const response = await axios.get('/api/portfolio/');
                 setPortfolioData(response.data);
 
-                const chartDataPromises = response.data.assets.map(async (asset: Asset) => {
-                    if (asset.quantidade > 0) {
-                        try {
-                            const chartResponse = await axios.get(`/api/ativos/charts/${asset.id_api_precos}?days=7`);
-                            return {
-                                [asset.id_api_precos]: {
-                                    labels: chartResponse.data.prices.map((price: [number, number]) => price[0]),
+                const assetsToFetch = response.data.assets
+                    .filter((asset: Asset) => {
+                        const stablecoins = ['usd', 'usdc', 'usdt', 'dai'];
+                        return asset.quantidade > 0 && !stablecoins.includes(asset.id_api_precos);
+                    })
+                    .map((asset: Asset) => asset.id_api_precos);
+
+                if (assetsToFetch.length > 0) {
+                    try {
+                        const params = new URLSearchParams();
+                        assetsToFetch.forEach((id: string) => params.append('ids', id));
+                        const chartResponse = await axios.get(`/api/ativos/charts/bulk?${params.toString()}&days=7`);
+                        
+                        const bulkChartData = chartResponse.data;
+                        const newChartData: { [key: string]: any } = {};
+
+                        for (const asset of response.data.assets) {
+                            const assetId = asset.id_api_precos;
+                            if (bulkChartData[assetId] && bulkChartData[assetId].prices) {
+                                newChartData[assetId] = {
+                                    labels: bulkChartData[assetId].prices.map((price: [number, number]) => price[0]),
                                     datasets: [
                                         {
                                             label: `Preço de ${asset.nome}`,
-                                            data: chartResponse.data.prices.map((price: [number, number]) => price[1]),
-                                            borderColor: '#1cc88a', // Verde
-                                            backgroundColor: 'rgba(28, 200, 138, 0.1)', // Verde com transparência
+                                            data: bulkChartData[assetId].prices.map((price: [number, number]) => price[1]),
+                                            borderColor: '#1cc88a',
+                                            backgroundColor: 'rgba(28, 200, 138, 0.1)',
                                             fill: true,
                                             borderWidth: 2,
                                             tension: 0.3,
@@ -58,24 +72,16 @@ const Portfolio: React.FC = () => {
                                             pointHoverRadius: 5,
                                         },
                                     ],
-                                }
-                            };
-                        } catch (err) {
-                            console.error(`Error fetching chart data for ${asset.id_api_precos}`, err);
-                            return { [asset.id_api_precos]: null };
+                                };
+                            } else {
+                                newChartData[assetId] = null;
+                            }
                         }
+                        setChartData(newChartData);
+                    } catch (err) {
+                        console.error(`Error fetching bulk chart data`, err);
                     }
-                    return null;
-                });
-
-                const chartDataResults = await Promise.all(chartDataPromises);
-                const chartDataMap = chartDataResults.reduce((acc, curr) => {
-                    if (curr) {
-                        return { ...acc, ...curr };
-                    }
-                    return acc;
-                }, {});
-                setChartData(chartDataMap);
+                }
 
             } catch (err) {
                 setError('Falha ao carregar dados do portfólio.');
