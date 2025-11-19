@@ -17,6 +17,7 @@ interface Asset {
     preco_atual: number;
     valor_total: number;
     pl_nao_realizado: number;
+    pl_24h_change: number;
 }
 
 interface PortfolioData {
@@ -142,6 +143,8 @@ const Portfolio: React.FC = () => {
                             <div key={asset.id} className="chart-card">
                                 <AssetPriceChart
                                     assetName={asset.nome}
+                                    assetPrice={asset.preco_atual}
+                                    pl_24h_change={asset.pl_24h_change}
                                     chartData={chartData[asset.id_api_precos]}
                                 />
                             </div>

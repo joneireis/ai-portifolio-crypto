@@ -6,6 +6,7 @@ services:
 
     environment:
       - DATABASE_URL=sqlite:///./test.db
+      - COINGECKO_API_KEY=CG-8kbajm97Zrhfzos7443bXPgU
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
       interval: 10s

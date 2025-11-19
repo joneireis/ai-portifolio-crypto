@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import requests
 import time
 import random # Importa random para o jitter no backoff
+import os
 
 from . import crud, models, schemas
 from .database import SessionLocal, engine
@@ -27,15 +28,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import os
+
 # --- Lógica de Preços e Cache Otimizada ---
+
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
 
 CACHE_DURATION_SECONDS = 120  # 2 minutos (para preços individuais)
 CHART_CACHE_DURATION_SECONDS = 3600 # 1 hora (para dados de gráficos)
 
 price_cache = {} # Cache global para preços e dados de gráficos
 
-def get_current_prices_bulk(id_list: list[str]) -> dict[str, float]:
-    """Busca preços em massa, utilizando o cache."""
+def get_current_prices_bulk(id_list: list[str]) -> dict[str, dict[str, float]]:
+    """Busca preços e variação 24h em massa, utilizando o cache."""
     current_time = time.time()
     prices = {}
     ids_to_fetch = []
@@ -43,9 +48,9 @@ def get_current_prices_bulk(id_list: list[str]) -> dict[str, float]:
     # 1. Verifica o cache primeiro
     for asset_id in id_list:
         if asset_id in price_cache:
-            cached_price, timestamp = price_cache[asset_id]
+            cached_data, timestamp = price_cache[asset_id]
             if current_time - timestamp < CACHE_DURATION_SECONDS:
-                prices[asset_id] = cached_price
+                prices[asset_id] = cached_data
             else:
                 ids_to_fetch.append(asset_id)
         else:
@@ -57,17 +62,22 @@ def get_current_prices_bulk(id_list: list[str]) -> dict[str, float]:
         for i in range(retries):
             try:
                 ids_string = ",".join(ids_to_fetch)
-                url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_string}&vs_currencies=usd"
+                url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_string}&vs_currencies=usd&include_24hr_change=true"
+                if COINGECKO_API_KEY:
+                    url += f"&x_cg_demo_api_key={COINGECKO_API_KEY}"
                 response = requests.get(url)
                 response.raise_for_status()
                 data = response.json()
 
                 # 3. Atualiza o cache e o dicionário de preços
                 for asset_id in ids_to_fetch:
-                    price = data.get(asset_id, {}).get("usd", 0.0)
-                    prices[asset_id] = price
+                    asset_data = data.get(asset_id, {})
+                    price = asset_data.get("usd", 0.0)
+                    change = asset_data.get("usd_24h_change", 0.0)
+                    
+                    prices[asset_id] = {"price": price, "change": change}
                     if price > 0: # Só armazena em cache preços válidos
-                        price_cache[asset_id] = (price, current_time)
+                        price_cache[asset_id] = ({"price": price, "change": change}, current_time)
                 break # Sai do loop de retries se a requisição for bem-sucedida
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 429 and i < retries - 1:
@@ -77,12 +87,12 @@ def get_current_prices_bulk(id_list: list[str]) -> dict[str, float]:
                 else:
                     print(f"Could not fetch bulk prices: {e}")
                     for asset_id in ids_to_fetch:
-                        prices.setdefault(asset_id, 0.0)
+                        prices.setdefault(asset_id, {"price": 0.0, "change": 0.0})
                     break # Sai do loop de retries se não for 429 ou se for a última tentativa
             except (requests.exceptions.RequestException, KeyError) as e:
                 print(f"Could not fetch bulk prices: {e}")
                 for asset_id in ids_to_fetch:
-                    prices.setdefault(asset_id, 0.0)
+                    prices.setdefault(asset_id, {"price": 0.0, "change": 0.0})
                 break # Sai do loop de retries para outros erros
 
     return prices
@@ -171,6 +181,8 @@ def get_asset_chart_data(id_api_precos: str, days: Union[int, str] = 7, interval
     for i in range(retries):
         try:
             url = f"https://api.coingecko.com/api/v3/coins/{id_api_precos}/market_chart?vs_currency=usd&days={days}"
+            if COINGECKO_API_KEY:
+                url += f"&x_cg_demo_api_key={COINGECKO_API_KEY}"
             if interval:
                 url += f"&interval={interval}"
                 
@@ -221,10 +233,11 @@ def get_portfolio(db: Session = Depends(get_db)):
 
     # Otimização: Buscar todos os preços de uma vez
     all_api_ids = list(set([ativo.id_api_precos for ativo in ativos]))
-    current_prices = get_current_prices_bulk(all_api_ids)
+    current_prices_data = get_current_prices_bulk(all_api_ids)
 
     portfolio = {}
     for ativo in ativos:
+        price_data = current_prices_data.get(ativo.id_api_precos, {"price": 0.0, "change": 0.0})
         portfolio[ativo.id] = {
             "id": ativo.id,
             "nome": ativo.nome,
@@ -233,7 +246,8 @@ def get_portfolio(db: Session = Depends(get_db)):
             "quantidade": 0,
             "custo_total": 0,
             "preco_medio": 0,
-            "preco_atual": current_prices.get(ativo.id_api_precos, 0.0),
+            "preco_atual": price_data.get("price", 0.0),
+            "pl_24h_change": price_data.get("change", 0.0),
             "valor_total": 0,
             "pl_nao_realizado": 0,
         }

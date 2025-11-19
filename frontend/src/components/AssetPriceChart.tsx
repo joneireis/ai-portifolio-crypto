@@ -8,16 +8,21 @@ ChartJS.register(LineElement, PointElement, LinearScale, TimeScale, Tooltip, Tit
 interface AssetPriceChartProps {
     chartData: any;
     assetName: string;
+    assetPrice: number;
+    pl_24h_change: number;
 }
 
-const AssetPriceChart: React.FC<AssetPriceChartProps> = ({ chartData, assetName }) => {
+const AssetPriceChart: React.FC<AssetPriceChartProps> = ({ chartData, assetName, assetPrice, pl_24h_change }) => {
     const options: any = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
             title: {
                 display: true,
-                text: assetName, // Usa o nome do ativo como título
+                text: [
+                    assetName,
+                    assetPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+                ],
                 color: '#e1e8ed',
                 font: {
                     size: 16,
@@ -70,9 +75,25 @@ const AssetPriceChart: React.FC<AssetPriceChartProps> = ({ chartData, assetName 
         },
     };
 
+    const isPositive = pl_24h_change >= 0;
+    const changeColor = isPositive ? '#2ecc71' : '#e74c3c';
+    const arrow = isPositive ? '▲' : '▼';
+
     return (
-        <div style={{ position: 'relative', height: '250px' }}>
-            {chartData ? <Line data={chartData} options={options} /> : <p>Carregando gráfico...</p>}
+        <div style={{ position: 'relative', height: '280px' }}>
+            <div style={{ height: '250px' }}>
+                {chartData ? <Line data={chartData} options={options} /> : <p>Carregando gráfico...</p>}
+            </div>
+            <div style={{ color: changeColor, textAlign: 'center', paddingTop: '5px' }}>
+                {typeof pl_24h_change === 'number' ? (
+                    <>
+                        <span>{arrow} </span>
+                        <span>{pl_24h_change.toFixed(2)}%</span>
+                    </>
+                ) : (
+                    <span>--</span>
+                )}
+            </div>
         </div>
     );
 };
