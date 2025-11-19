@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AssetAllocationChart from './AssetAllocationChart';
 import CostValueChart from './CostValueChart';
 import PortfolioChart from './PortfolioChart';
 import AssetPriceChart from './AssetPriceChart';
-import SaleSimulator from './SaleSimulator';
 
 interface Asset {
     id: number;
@@ -30,69 +29,82 @@ const Portfolio: React.FC = () => {
     const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
     const [chartData, setChartData] = useState<any>({});
     const [loading, setLoading] = useState<boolean>(true);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchPortfolioData = async () => {
-            try {
-                setLoading(true);
-                const response = await axios.get('/api/portfolio/');
-                setPortfolioData(response.data);
+    const fetchPortfolioData = useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            const response = await axios.get('/api/portfolio/');
+            setPortfolioData(response.data);
 
-                const assetsToFetch = response.data.assets
-                    .filter((asset: Asset) => {
-                        const stablecoins = ['usd', 'usdc', 'usdt', 'dai'];
-                        return asset.quantidade > 0 && !stablecoins.includes(asset.id_api_precos);
-                    })
-                    .map((asset: Asset) => asset.id_api_precos);
+            const assetsToFetch = response.data.assets
+                .filter((asset: Asset) => {
+                    const stablecoins = ['usd', 'usdc', 'usdt', 'dai'];
+                    return asset.quantidade > 0 && !stablecoins.includes(asset.id_api_precos);
+                })
+                .map((asset: Asset) => asset.id_api_precos);
 
-                if (assetsToFetch.length > 0) {
-                    try {
-                        const params = new URLSearchParams();
-                        assetsToFetch.forEach((id: string) => params.append('ids', id));
-                        const chartResponse = await axios.get(`/api/ativos/charts/bulk?${params.toString()}&days=7`);
-                        
-                        const bulkChartData = chartResponse.data;
-                        const newChartData: { [key: string]: any } = {};
+            if (assetsToFetch.length > 0) {
+                try {
+                    const params = new URLSearchParams();
+                    assetsToFetch.forEach((id: string) => params.append('ids', id));
+                    const chartResponse = await axios.get(`/api/ativos/charts/bulk?${params.toString()}&days=7`);
+                    
+                    const bulkChartData = chartResponse.data;
+                    const newChartData: { [key: string]: any } = {};
 
-                        for (const asset of response.data.assets) {
-                            const assetId = asset.id_api_precos;
-                            if (bulkChartData[assetId] && bulkChartData[assetId].prices) {
-                                newChartData[assetId] = {
-                                    labels: bulkChartData[assetId].prices.map((price: [number, number]) => price[0]),
-                                    datasets: [
-                                        {
-                                            label: `Preço de ${asset.nome}`,
-                                            data: bulkChartData[assetId].prices.map((price: [number, number]) => price[1]),
-                                            borderColor: '#1cc88a',
-                                            backgroundColor: 'rgba(28, 200, 138, 0.1)',
-                                            fill: true,
-                                            borderWidth: 2,
-                                            tension: 0.3,
-                                            pointRadius: 0,
-                                            pointHoverRadius: 5,
-                                        },
-                                    ],
-                                };
-                            } else {
-                                newChartData[assetId] = null;
-                            }
+                    for (const asset of response.data.assets) {
+                        const assetId = asset.id_api_precos;
+                        if (bulkChartData[assetId] && bulkChartData[assetId].prices) {
+                            newChartData[assetId] = {
+                                labels: bulkChartData[assetId].prices.map((price: [number, number]) => price[0]),
+                                datasets: [
+                                    {
+                                        label: `Preço de ${asset.nome}`,
+                                        data: bulkChartData[assetId].prices.map((price: [number, number]) => price[1]),
+                                        borderColor: '#1cc88a',
+                                        backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                                        fill: true,
+                                        borderWidth: 2,
+                                        tension: 0.3,
+                                        pointRadius: 0,
+                                        pointHoverRadius: 5,
+                                    },
+                                ],
+                            };
+                        } else {
+                            newChartData[assetId] = null;
                         }
-                        setChartData(newChartData);
-                    } catch (err) {
-                        console.error(`Error fetching bulk chart data`, err);
                     }
+                    setChartData(newChartData);
+                } catch (err) {
+                    console.error(`Error fetching bulk chart data`, err);
                 }
-
-            } catch (err) {
-                setError('Falha ao carregar dados do portfólio.');
-                console.error(err);
-            } finally {
-                setLoading(false);
             }
-        };
-        fetchPortfolioData();
+        } catch (err) {
+            setError('Falha ao carregar dados do portfólio.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+        }
     }, []);
+
+    // Efeito para a carga inicial
+    useEffect(() => {
+        fetchPortfolioData();
+    }, [fetchPortfolioData]);
+
+    // Efeito para o auto-refresh a cada 5 minutos
+    useEffect(() => {
+        const interval = setInterval(() => {
+            console.log("Atualizando dados automaticamente...");
+            fetchPortfolioData();
+        }, 300000); // 5 minutos
+
+        return () => clearInterval(interval); // Limpa o intervalo ao desmontar o componente
+    }, [fetchPortfolioData]);
 
     if (loading) {
         return <div className="portfolio-dashboard">Carregando portfólio...</div>;
@@ -110,6 +122,18 @@ const Portfolio: React.FC = () => {
 
     return (
         <div className="portfolio-dashboard">
+            <div className="dashboard-header">
+                <h3>Dashboard</h3>
+                <button 
+                    className={`refresh-button ${isRefreshing ? 'refreshing' : ''}`} 
+                    onClick={() => fetchPortfolioData()}
+                    disabled={isRefreshing}
+                >
+                    <span className="refresh-icon">↻</span>
+                    {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+                </button>
+            </div>
+
             <div className="summary-cards">
                 <div className="card">
                     <h3>Valor Total do Portfólio</h3>
@@ -153,7 +177,6 @@ const Portfolio: React.FC = () => {
                 </div>
             </div>
 
-            <h3>Dashboard</h3>
             <table>
                 <thead>
                     <tr>
@@ -191,5 +214,6 @@ const Portfolio: React.FC = () => {
         </div>
     );
 };
+
 
 export default Portfolio;
