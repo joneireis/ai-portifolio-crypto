@@ -56,7 +56,7 @@ coverage.xml
 *.log
 local_settings.py
 db.sqlite3
-backend/test.db
+#backend/test.db
 
 # Flask stuff:
 instance/
