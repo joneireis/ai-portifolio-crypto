@@ -286,3 +286,146 @@ tbody tr:hover {
   border-bottom-color: #1da1f2;
 
 }
+
+/* Form Styles */
+.form-container {
+  background-color: #192734;
+  padding: 2rem;
+  border-radius: 16px;
+  border: 1px solid #38444d;
+  max-width: 800px; /* Adjust as needed */
+  margin: 2rem auto; /* Center the form */
+}
+
+.form-container h2, .form-container h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #38444d;
+  padding-bottom: 1rem;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem; /* Ensures space between form-group elements */
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  flex: 1 1 calc(50% - 0.75rem); /* Distributes space evenly, accounting for gap */
+  display: flex;
+  flex-direction: column;
+  min-width: 150px; /* Ensure a minimum width for smaller screens */
+}
+
+.form-group.full-width {
+  flex-basis: 100%;
+}
+
+.form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  color: #8899a6;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  background-color: #253341;
+  border: 1px solid #38444d;
+  border-radius: 8px;
+  padding: 0.8rem;
+  color: #e1e8ed;
+  font-size: 1rem;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #1da1f2;
+  box-shadow: 0 0 0 2px rgba(29, 161, 242, 0.2);
+}
+
+.price-group {
+  position: relative;
+  flex: 1 1 calc(50% - 0.75rem); /* Ensure it takes half width */
+}
+
+.price-group input {
+  padding-right: 120px; /* Increased space for the button */
+}
+
+.fetch-price-button {
+  position: absolute;
+  right: 8px; /* Adjusted right position */
+  top: 50%;
+  transform: translateY(calc(-50% + 12px));
+  background-color: #2c3e50;
+  border: 1px solid #6c7a93;
+  color: #e1e8ed;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap; /* Prevent button text from wrapping */
+}
+
+.fetch-price-button:hover {
+  background-color: #4e5d78;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+button[type="submit"], .form-actions button {
+  background-color: #1da1f2;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button[type="submit"]:hover, .form-actions button:hover {
+  background-color: #0c85d0;
+}
+
+.cancel-button {
+  background-color: #e0245e !important;
+}
+
+.cancel-button:hover {
+  background-color: #b81c4a !important;
+}
+
+/* Status Badge Styles */
+.status {
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.status-success {
+  background-color: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+}
+
+.status-error {
+  background-color: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+}
+
+.status-running {
+  background-color: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
+}

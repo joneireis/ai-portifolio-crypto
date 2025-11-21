@@ -33,7 +33,16 @@ class Transacao(TransacaoBase):
     class Config:
         from_attributes = True
 
-class SaleSimulation(BaseModel):
-    ativo_id: int
-    quantidade: float
-    preco_venda: float
+class SnapshotLogBase(BaseModel):
+    timestamp: datetime
+    status: str
+    message: str
+
+class SnapshotLogCreate(SnapshotLogBase):
+    pass
+
+class SnapshotLog(SnapshotLogBase):
+    id: int
+
+    class Config:
+        from_attributes = True

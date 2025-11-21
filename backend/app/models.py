@@ -41,4 +41,12 @@ class PortfolioSnapshots(Base):
     data = Column(DateTime, index=True)
     valor_total = Column(Float)
 
+class SnapshotLogs(Base):
+    __tablename__ = "snapshot_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, index=True)
+    status = Column(String)
+    message = Column(String)
+
 Base.metadata.create_all(bind=engine)

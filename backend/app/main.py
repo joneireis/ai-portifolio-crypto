@@ -211,6 +211,17 @@ def get_asset_chart_data(id_api_precos: str, days: Union[int, str] = 7, interval
             print(f"Could not fetch chart data for {id_api_precos} (days={days}, interval={interval}): {e}")
             raise HTTPException(status_code=500, detail="Failed to fetch chart data from external API")
 
+@app.get("/ativos/price/{id_api_precos}")
+def get_ativo_price(id_api_precos: str):
+    """
+    Busca o preço atual de um único ativo usando seu ID da API de preços (CoinGecko).
+    """
+    prices_data = get_current_prices_bulk([id_api_precos])
+    price_info = prices_data.get(id_api_precos)
+    if not price_info or price_info["price"] == 0.0:
+        raise HTTPException(status_code=404, detail=f"Preço para o ativo '{id_api_precos}' não encontrado ou indisponível.")
+    return {"price": price_info["price"]}
+
 @app.post("/transacoes/", response_model=schemas.Transacao)
 def create_transacao(transacao: schemas.TransacaoCreate, db: Session = Depends(get_db)):
     return crud.create_transacao(db=db, transacao=transacao)
@@ -289,42 +300,6 @@ def get_portfolio(db: Session = Depends(get_db)):
         "total_pl": total_pl,
     }
 
-@app.post("/portfolio/simulate_sale")
-def simulate_sale(simulation: schemas.SaleSimulation, db: Session = Depends(get_db)):
-    # Calcula o estado atual do portfólio para o ativo específico
-    transacoes = crud.get_transacoes(db, limit=1000)
-    
-    custo_total = 0
-    quantidade_total = 0
-    for t in transacoes:
-        if t.ativo_id == simulation.ativo_id:
-            if t.tipo_transacao == models.TipoTransacao.compra:
-                quantidade_total += t.quantidade
-                custo_total += t.quantidade * t.preco_unitario
-            elif t.tipo_transacao == models.TipoTransacao.venda:
-                quantidade_total -= t.quantidade
-            elif t.tipo_transacao in [models.TipoTransacao.claim_lending, models.TipoTransacao.claim_staking]:
-                quantidade_total += t.quantidade
-
-    if quantidade_total <= 0:
-        raise HTTPException(status_code=404, detail="Ativo não encontrado ou sem saldo no portfólio")
-
-    preco_medio = custo_total / quantidade_total if quantidade_total > 0 else 0
-    
-    if simulation.quantidade > quantidade_total:
-        raise HTTPException(status_code=400, detail="Quantidade de venda simulada excede a quantidade em portfólio")
-
-    lucro_prejuizo_realizado = (simulation.preco_venda - preco_medio) * simulation.quantidade
-    
-    # O preço médio do ativo restante não muda com a venda
-    novo_preco_medio = preco_medio
-
-    return {
-        "lucro_prejuizo_realizado": lucro_prejuizo_realizado,
-        "novo_preco_medio": novo_preco_medio,
-        "quantidade_restante": quantidade_total - simulation.quantidade,
-    }
-
 @app.get("/portfolio/snapshots")
 def get_portfolio_snapshots(db: Session = Depends(get_db), days: int = 0):
     query = db.query(models.PortfolioSnapshots)
@@ -333,3 +308,7 @@ def get_portfolio_snapshots(db: Session = Depends(get_db), days: int = 0):
         start_date = datetime.now() - timedelta(days=days)
         query = query.filter(models.PortfolioSnapshots.data >= start_date)
     return query.order_by(models.PortfolioSnapshots.data).all()
+
+@app.get("/settings/snapshot-logs", response_model=List[schemas.SnapshotLog])
+def read_snapshot_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.get_snapshot_logs(db, skip=skip, limit=limit)

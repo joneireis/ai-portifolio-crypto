@@ -37,22 +37,22 @@ The easiest way to get the application running is using Docker Compose.
     This command will build the Docker images for the backend and frontend, and then start the services in detached mode.
 
 2.  **Access the application:**
-    -   **Frontend:** Open your browser and navigate to `http://localhost:3000`
+    -   **Frontend:** Open your browser and navigate to `http://localhost:3003`
     -   **Backend API Documentation (Swagger UI):** `http://localhost:8000/docs`
 
 ## Initial Setup and Data Population
 
 1.  **Create Assets:**
-    -   Navigate to the **"Ativos"** page in the frontend (`http://localhost:3000/ativos`).
+    -   Navigate to the **"Ativos"** page in the frontend (`http://localhost:3003/ativos`).
     -   Use the form to add your cryptocurrency assets (e.g., Bitcoin, Ethereum, USDC).
     -   **Important:** For each asset, provide the correct "ID API Preços" (CoinGecko ID) so the application can fetch real-time prices.
 
 2.  **Register Transactions:**
-    -   Navigate to the **"Transações"** page in the frontend (`http://localhost:3000/transacoes`).
+    -   Navigate to the **"Transações"** page in the frontend (`http://localhost:3003/transacoes`).
     -   Select an asset from the dropdown, fill in the transaction details, and register your buys, sells, or claims.
 
 3.  **DeFi Operations Guide:**
-    -   For specific instructions on how to register Lending, Staking, or Uniswap V3 LP positions, visit the **"Guia DeFi"** page (`http://localhost:3000/guia-defi`).
+    -   For specific instructions on how to register Lending, Staking, or Uniswap V3 LP positions, visit the **"Guia DeFi"** page (`http://localhost:3003/guia-defi`).
 
 ## Daily Portfolio Snapshot
 
@@ -109,7 +109,7 @@ If you prefer to run the backend and frontend locally without Docker:
     ```bash
     npm start
     ```
-    The frontend will be running at `http://localhost:3000`.
+    The frontend will be running at `http://localhost:3003`.
 
     **Note:** When running locally, ensure your backend is also running, as the frontend will proxy API requests to `http://localhost:8000`.
 

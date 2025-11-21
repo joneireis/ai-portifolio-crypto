@@ -64,33 +64,35 @@ const AtivoForm: React.FC<AtivoFormProps> = ({ onFormSubmit, editingAtivo, setEd
     };
 
     return (
-        <form onSubmit={handleSubmit} style={{ maxWidth: '600px', margin: '20px 0' }}>
+        <div className="form-container">
             <h3>{isEditing ? 'Editar Ativo' : 'Cadastrar Novo Ativo'}</h3>
-            <div className="form-row">
-                <div className="form-group">
-                    <label htmlFor="nome">Nome do Ativo</label>
-                    <input id="nome" type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Bitcoin" required />
+            <form onSubmit={handleSubmit}>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label htmlFor="nome">Nome do Ativo</label>
+                        <input id="nome" type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Bitcoin" required />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="simbolo">Símbolo</label>
+                        <input id="simbolo" type="text" value={simbolo} onChange={e => setSimbolo(e.target.value)} placeholder="Ex: BTC" required />
+                    </div>
                 </div>
-                <div className="form-group">
-                    <label htmlFor="simbolo">Símbolo</label>
-                    <input id="simbolo" type="text" value={simbolo} onChange={e => setSimbolo(e.target.value)} placeholder="Ex: BTC" required />
+                <div className="form-row">
+                    <div className="form-group full-width">
+                        <label htmlFor="id_api_precos">ID da API de Preços (CoinGecko)</label>
+                        <input id="id_api_precos" type="text" value={id_api_precos} onChange={e => setIdApiPrecos(e.target.value)} placeholder="Ex: bitcoin" required />
+                    </div>
                 </div>
-            </div>
-            <div className="form-row">
-                <div className="form-group">
-                    <label htmlFor="id_api_precos">ID da API de Preços (CoinGecko)</label>
-                    <input id="id_api_precos" type="text" value={id_api_precos} onChange={e => setIdApiPrecos(e.target.value)} placeholder="Ex: bitcoin" required />
+                <div className="form-actions">
+                    <button type="submit">{isEditing ? 'Atualizar Ativo' : 'Cadastrar Ativo'}</button>
+                    {isEditing && (
+                        <button type="button" onClick={clearForm} className="cancel-button">
+                            Cancelar
+                        </button>
+                    )}
                 </div>
-            </div>
-            <div className="form-actions">
-                <button type="submit">{isEditing ? 'Atualizar Ativo' : 'Cadastrar Ativo'}</button>
-                {isEditing && (
-                    <button type="button" onClick={clearForm} className="cancel-button">
-                        Cancelar
-                    </button>
-                )}
-            </div>
-        </form>
+            </form>
+        </div>
     );
 };
 

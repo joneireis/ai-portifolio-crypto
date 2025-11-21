@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
-import TransactionForm from './components/TransactionForm';
-import TransactionList from './components/TransactionList';
 import Portfolio from './components/Portfolio';
-import SaleSimulator from './components/SaleSimulator';
 import DeFiGuide from './components/DeFiGuide';
 import AtivosPage from './components/AtivosPage';
+import TransacoesPage from './components/TransacoesPage';
+import SettingsPage from './components/SettingsPage';
 
 interface Asset {
     id: number;
@@ -52,28 +51,17 @@ function App() {
                         <Link to="/">Dashboard</Link>
                         <Link to="/ativos">Ativos</Link>
                         <Link to="/transacoes">Transações</Link>
-                        <Link to="/simulador">Simulador de Vendas</Link>
                         <Link to="/guia-defi">Guia DeFi</Link>
+                        <Link to="/settings">Settings</Link>
                     </nav>
                 </header>
                 <main>
                     <Routes>
                         <Route path="/" element={<Portfolio />} />
                         <Route path="/ativos" element={<AtivosPage />} />
-                        <Route path="/transacoes" element={
-                            <>
-                                <TransactionForm />
-                                <TransactionList />
-                            </>
-                        } />
-                        <Route path="/simulador" element={
-                            portfolioData && portfolioData.assets ? (
-                                <SaleSimulator assets={portfolioData.assets} />
-                            ) : (
-                                <p>Carregando ativos...</p>
-                            )
-                        } />
+                        <Route path="/transacoes" element={<TransacoesPage />} />
                         <Route path="/guia-defi" element={<DeFiGuide />} />
+                        <Route path="/settings" element={<SettingsPage />} />
                     </Routes>
                 </main>
             </div>

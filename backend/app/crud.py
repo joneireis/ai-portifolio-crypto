@@ -50,3 +50,13 @@ def delete_transacao(db: Session, transacao_id: int):
         db.commit()
         return db_transacao
     return None
+
+def create_snapshot_log(db: Session, log: schemas.SnapshotLogCreate):
+    db_log = models.SnapshotLogs(**log.dict())
+    db.add(db_log)
+    db.commit()
+    db.refresh(db_log)
+    return db_log
+
+def get_snapshot_logs(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.SnapshotLogs).order_by(models.SnapshotLogs.timestamp.desc()).offset(skip).limit(limit).all()

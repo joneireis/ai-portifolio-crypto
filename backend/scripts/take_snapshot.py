@@ -6,30 +6,41 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.database import SessionLocal
-from app.crud import get_transacoes, get_ativos
+from app.crud import get_transacoes, get_ativos, create_snapshot_log
 from app.main import get_current_prices_bulk
 from app.models import PortfolioSnapshots, TipoTransacao
+from app import schemas
 
 def take_snapshot():
     """
-    Calcula o valor total atual do portfólio e salva um snapshot no banco de dados.
+    Calcula o valor total atual do portfólio e salva um snapshot no banco de dados,
+    registrando o resultado em uma tabela de logs.
     """
     db = SessionLocal()
-    print("Conectado ao banco de dados...")
+    log_message = "Iniciando o processo de snapshot."
+    print(log_message)
+    
+    # Cria um log inicial
+    log_entry = schemas.SnapshotLogCreate(
+        timestamp=datetime.now(),
+        status="RUNNING",
+        message=log_message
+    )
+    
     try:
         transacoes = get_transacoes(db, limit=5000)
         ativos = get_ativos(db, limit=1000)
-        print(f"Encontrados {len(ativos)} ativos e {len(transacoes)} transações.")
-
-        # Otimização: Buscar todos os preços de uma vez
+        
         all_api_ids = list(set([ativo.id_api_precos for ativo in ativos]))
         if not all_api_ids:
-            print("Nenhum ativo para precificar. Saindo.")
+            message = "Nenhum ativo para precificar. Snapshot não gerado."
+            print(message)
+            log_entry.status = "SUCCESS"
+            log_entry.message = message
+            create_snapshot_log(db, log_entry)
             return
-        
-        print(f"Buscando preços para: {all_api_ids}...")
-        current_prices = get_current_prices_bulk(all_api_ids)
-        print("Preços recebidos.")
+
+        current_prices_data = get_current_prices_bulk(all_api_ids)
 
         portfolio_quantities = {
             ativo.id: {
@@ -50,18 +61,25 @@ def take_snapshot():
         total_value = 0
         for asset_data in portfolio_quantities.values():
             if asset_data["quantidade"] > 0:
-                preco_atual = current_prices.get(asset_data["id_api_precos"], 0.0)
-                total_value += asset_data["quantidade"] * preco_atual
-
-        print(f"Valor total do portfólio calculado: {total_value}")
+                price_data = current_prices_data.get(asset_data["id_api_precos"], {"price": 0.0})
+                total_value += asset_data["quantidade"] * price_data["price"]
 
         snapshot = PortfolioSnapshots(data=datetime.now(), valor_total=total_value)
         db.add(snapshot)
         db.commit()
-        print("Snapshot salvo no banco de dados com sucesso!")
-    
+        
+        message = f"Snapshot salvo com sucesso! Valor total do portfólio: {total_value:.2f}"
+        print(message)
+        log_entry.status = "SUCCESS"
+        log_entry.message = message
+        create_snapshot_log(db, log_entry)
+
     except Exception as e:
-        print(f"Ocorreu um erro ao gerar o snapshot: {e}")
+        message = f"Ocorreu um erro ao gerar o snapshot: {e}"
+        print(message)
+        log_entry.status = "ERROR"
+        log_entry.message = message
+        create_snapshot_log(db, log_entry)
     finally:
         db.close()
         print("Conexão com o banco de dados fechada.")
