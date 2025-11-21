@@ -14,8 +14,10 @@ This is a full-stack web application for managing a cryptocurrency portfolio.
     -   **Alocação de Ativos:** Gráfico de pizza mostrando a distribuição do portfólio, agrupando fatias menores que 5% em "Outros". Percentuais exibidos sobre as fatias.
     -   **Custo vs. Valor Atual:** Gráfico de barras comparando custo e valor atual, ordenado por valor total decrescente, com valores em formato de milhar e negrito.
 -   **Real-time Prices:** Fetches current cryptocurrency prices from the CoinGecko API with caching to prevent rate limiting.
--   **Sale Simulator:** Simulate the sale of an asset to see the potential profit or loss.
 -   **DeFi Guide:** Comprehensive guide on how to register Lending, Staking, and Uniswap V3 Liquidity Pool (LP) positions.
+-   **Settings:** Manage application settings, including:
+    -   **Snapshot Scheduler Adjustments:** Configure the interval (in minutes) for the automated portfolio snapshot process.
+    -   **Snapshot Logs:** View the last 10 execution logs of the portfolio snapshot process, including timestamp, status, and message.
 -   **Dark Theme:** Modern dark theme applied throughout the application.
 
 ## Tech Stack
@@ -54,15 +56,11 @@ The easiest way to get the application running is using Docker Compose.
 3.  **DeFi Operations Guide:**
     -   For specific instructions on how to register Lending, Staking, or Uniswap V3 LP positions, visit the **"Guia DeFi"** page (`http://localhost:3003/guia-defi`).
 
-## Daily Portfolio Snapshot
+## Automated Daily Portfolio Snapshot
 
-To populate the "Evolução do Portfólio" chart on the Dashboard, you need to run a script that takes a snapshot of your portfolio's total value. This script should be run periodically (e.g., once a day).
+The "Evolução do Portfólio" chart on the Dashboard is populated by an automated snapshot process. A scheduler running in the backend automatically takes a snapshot of your portfolio's total value at a configurable interval.
 
-1.  **Execute the snapshot script:**
-    ```bash
-    docker-compose exec backend python scripts/take_snapshot.py
-    ```
-    You can set up a cron job or a similar scheduler on your host system to run this command automatically.
+You can view the execution logs of this process and adjust its interval on the **"Settings"** page (`http://localhost:3003/settings`).
 
 ## Local Development (Without Docker)
 

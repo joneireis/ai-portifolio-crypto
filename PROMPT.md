@@ -49,15 +49,10 @@ Esta é a página principal. Ela deve exibir:
 
 *   O sistema deve buscar os preços atuais dos ativos automaticamente, utilizando a API da **CoinGecko**.
 
-#### Módulo 4: Simulador de Vendas
+#### Módulo 4: Configurações (Settings)
 
-*   Uma página separada onde o usuário pode selecionar um **Ativo** do seu portfólio.
-*   O usuário informa a **Quantidade** que deseja "simular a venda".
-*   O usuário informa o **Preço de Venda** simulado.
-*   **Resultados da Simulação:**
-    *   **Lucro/Prejuízo Realizado:** (Preço de Venda - Preço Médio de Custo) * Quantidade.
-    *   **Novo Preço Médio:** O preço médio de custo do ativo restante não muda.
-    *   **Impacto no Portfólio:** Como o valor total do portfólio mudaria.
+*   **Logs de Snapshot:** Uma seção para visualizar os últimos 10 registros de execução do processo de snapshot do portfólio, incluindo timestamp, status e mensagem.
+*   **Ajustes do Agendador:** Permite visualizar e configurar o intervalo de tempo (em minutos) para a execução automática do snapshot do portfólio.
 
 ### 4. Gráficos e Acompanhamento
 
@@ -66,7 +61,7 @@ Esta é a página principal. Ela deve exibir:
 *   **Tipo:** Gráfico de Linha.
 *   **Eixo X:** Tempo (Dia).
 *   **Eixo Y:** Valor Total do Portfólio.
-*   **Implementação:** Requer um "snapshot" diário. Crie um script no backend que rode uma vez ao dia para registrar o valor total do portfólio na tabela `PortfolioSnapshots`.
+*   **Implementação:** Requer um "snapshot" diário. Um agendador no backend roda automaticamente para registrar o valor total do portfólio na tabela `PortfolioSnapshots`.
 
 #### Gráfico 2: Alocação de Ativos
 
@@ -109,6 +104,7 @@ Esta seção documenta as funcionalidades e aprimoramentos adicionados ao projet
     *   Remoção de volume desnecessário no serviço `frontend` do `docker-compose.yml`.
     *   Implementação de cache no backend (`main.py`) para chamadas à API da CoinGecko, mitigando problemas de "rate limiting".
     *   Otimização da busca de preços no endpoint `/portfolio/` para usar chamadas em massa à CoinGecko.
+    *   **Agendador de Snapshot:** Implementação de um agendador (`apscheduler`) no backend para automatizar a execução do snapshot do portfólio em intervalos configuráveis.
 
 3.  **Melhorias de Usabilidade e Funcionalidades do Frontend:**
     *   **Tema Dark:** Implementação de um tema escuro para toda a aplicação.
@@ -116,12 +112,13 @@ Esta seção documenta as funcionalidades e aprimoramentos adicionados ao projet
         *   Nova página "Ativos" (`/ativos`) com formulário para cadastrar, editar e excluir ativos.
         *   Funcionalidades de exclusão e edição de ativos no backend (`crud.py`, `main.py`) e frontend (`AtivoForm.tsx`, `AtivosPage.tsx`).
         *   Verificação de integridade no backend para impedir exclusão de ativos com transações.
+        *   Melhoria do layout do formulário de ativos para melhor UI/UX.
     *   **Formulário de Transações (`TransactionForm.tsx`):**
         *   Substituição do campo "ID do Ativo" por um ComboBox com seleção por nome/símbolo.
         *   Preenchimento automático da data/hora atual.
-        *   Botão "Buscar Preço" para preencher o preço unitário atual do ativo selecionado.
+        *   Botão "Buscar Preço" para preencher o preço unitário atual do ativo selecionado (funcionalidade corrigida).
         *   Preenchimento automático de "Preço Unitário = 0" para transações de `claim_lending` e `claim_staking`.
-        *   Layout mais compacto (múltiplos campos por linha).
+        *   Layout mais compacto (múltiplos campos por linha) e melhoria do layout geral do formulário para melhor UI/UX.
     *   **Histórico de Transações (`TransactionList.tsx`):**
         *   Exibição do nome do ativo em vez do ID.
         *   Funcionalidade de exclusão de transações.
@@ -133,4 +130,11 @@ Esta seção documenta as funcionalidades e aprimoramentos adicionados ao projet
         *   **Gráficos "Evolução dos Ativos":** Gráficos de linha individuais para cada ativo com seleção de período (90d, 30d, 7d, 1d). Eixo Y visível, sem rótulos de dados sobre a linha.
         *   **Gráfico "Alocação de Ativos":** Agrupamento de fatias menores que 5% em "Outros", com percentuais sobre as fatias.
         *   **Gráfico "Custo vs. Valor Atual":** Valores em formato de milhar e negrito, ordenado por valor total decrescente.
-    *   **Script de Snapshot:** Implementação da lógica do `scripts/take_snapshot.py` para popular o gráfico de evolução do portfólio.
+    *   **Página de Configurações (`SettingsPage.tsx`):**
+        *   Nova página (`/settings`) para gerenciar configurações da aplicação.
+        *   Seção "Ajustes do Agendador Snapshot" para visualizar e configurar o intervalo de execução do snapshot.
+        *   Seção "Logs de Snapshot do Portfólio" exibindo os últimos 10 registros de execução do snapshot.
+    *   **Remoção do Simulador de Vendas:** A página e a funcionalidade de "Simulador de Vendas" foram removidas da aplicação.
+
+---
+
