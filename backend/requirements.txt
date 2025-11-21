@@ -5,3 +5,4 @@ pydantic
 python-decouple
 requests
 psycopg2-binary
+apscheduler

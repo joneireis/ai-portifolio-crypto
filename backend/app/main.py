@@ -5,15 +5,71 @@ from typing import List, Union, Optional
 from pydantic import BaseModel
 import requests
 import time
-import random # Importa random para o jitter no backoff
+import random
 import os
+from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from . import crud, models, schemas
 from .database import SessionLocal, engine
+from .scripts.take_snapshot import take_snapshot as run_snapshot_script
+import json
 
 models.Base.metadata.create_all(bind=engine)
 
+# --- Scheduler Setup ---
+CONFIG_FILE = "app/scheduler_config.json"
+
+def get_scheduler_interval():
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+            return config.get("interval_minutes", 2)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return 2 # Default value
+
+def run_snapshot_job():
+    print(f"Scheduler running job at {datetime.now()}...")
+    run_snapshot_script(get_current_prices_bulk)
+
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(run_snapshot_job, 'interval', minutes=get_scheduler_interval(), id="snapshot_job")
+
 app = FastAPI()
+
+@app.on_event("startup")
+def startup_event():
+    print("Starting scheduler...")
+    scheduler.start()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    print("Shutting down scheduler...")
+    scheduler.shutdown()
+
+class SchedulerUpdate(BaseModel):
+    interval_minutes: int
+
+# --- Endpoints da API ---
+
+@app.get("/settings/scheduler")
+def get_scheduler_config():
+    return {"interval_minutes": get_scheduler_interval()}
+
+@app.post("/settings/scheduler")
+def update_scheduler_config(update: SchedulerUpdate):
+    new_interval = update.interval_minutes
+    if new_interval <= 0:
+        raise HTTPException(status_code=400, detail="Interval must be greater than 0.")
+    
+    # Update config file
+    with open(CONFIG_FILE, "w") as f:
+        json.dump({"interval_minutes": new_interval}, f)
+        
+    # Reschedule the job
+    scheduler.reschedule_job("snapshot_job", trigger='interval', minutes=new_interval)
+    
+    return {"message": f"Scheduler interval updated to {new_interval} minutes."}
 
 origins = [
     "http://localhost",

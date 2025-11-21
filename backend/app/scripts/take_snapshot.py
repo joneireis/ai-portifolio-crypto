@@ -1,17 +1,10 @@
-import sys
-import os
 from datetime import datetime
+from ..database import SessionLocal
+from ..crud import get_transacoes, get_ativos, create_snapshot_log
+from ..models import PortfolioSnapshots, TipoTransacao
+from .. import schemas
 
-# Adiciona o diretório raiz do projeto ao path para encontrar os módulos da app
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from app.database import SessionLocal
-from app.crud import get_transacoes, get_ativos, create_snapshot_log
-from app.main import get_current_prices_bulk
-from app.models import PortfolioSnapshots, TipoTransacao
-from app import schemas
-
-def take_snapshot():
+def take_snapshot(get_current_prices_bulk_func):
     """
     Calcula o valor total atual do portfólio e salva um snapshot no banco de dados,
     registrando o resultado em uma tabela de logs.
@@ -20,7 +13,6 @@ def take_snapshot():
     log_message = "Iniciando o processo de snapshot."
     print(log_message)
     
-    # Cria um log inicial
     log_entry = schemas.SnapshotLogCreate(
         timestamp=datetime.now(),
         status="RUNNING",
@@ -40,7 +32,7 @@ def take_snapshot():
             create_snapshot_log(db, log_entry)
             return
 
-        current_prices_data = get_current_prices_bulk(all_api_ids)
+        current_prices_data = get_current_prices_bulk_func(all_api_ids)
 
         portfolio_quantities = {
             ativo.id: {
@@ -83,7 +75,3 @@ def take_snapshot():
     finally:
         db.close()
         print("Conexão com o banco de dados fechada.")
-
-if __name__ == "__main__":
-    print("Iniciando o script de snapshot do portfólio...")
-    take_snapshot()
