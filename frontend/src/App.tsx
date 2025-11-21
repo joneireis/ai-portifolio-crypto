@@ -6,6 +6,7 @@ import Portfolio from './components/Portfolio';
 import DeFiGuide from './components/DeFiGuide';
 import AtivosPage from './components/AtivosPage';
 import TransacoesPage from './components/TransacoesPage';
+import AnalisePage from './components/AnalisePage';
 import SettingsPage from './components/SettingsPage';
 
 interface Asset {
@@ -51,6 +52,7 @@ function App() {
                         <Link to="/">Dashboard</Link>
                         <Link to="/ativos">Ativos</Link>
                         <Link to="/transacoes">Transações</Link>
+                        <Link to="/analise">Análise</Link>
                         <Link to="/guia-defi">Guia DeFi</Link>
                         <Link to="/settings">Settings</Link>
                     </nav>
@@ -60,6 +62,7 @@ function App() {
                         <Route path="/" element={<Portfolio />} />
                         <Route path="/ativos" element={<AtivosPage />} />
                         <Route path="/transacoes" element={<TransacoesPage />} />
+                        <Route path="/analise" element={<AnalisePage />} />
                         <Route path="/guia-defi" element={<DeFiGuide />} />
                         <Route path="/settings" element={<SettingsPage />} />
                     </Routes>
