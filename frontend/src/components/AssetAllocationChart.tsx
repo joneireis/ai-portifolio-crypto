@@ -114,4 +114,4 @@ const AssetAllocationChart: React.FC<AssetAllocationChartProps> = ({ assets }) =
     );
 };
 
-export default AssetAllocationChart;
+export default React.memo(AssetAllocationChart);

@@ -573,3 +573,35 @@ button[type="submit"]:hover, .form-actions button:hover {
 .centered-gauge-chart > div {
     margin: 0 auto;
 }
+
+.text-center {
+    text-align: center;
+}
+
+.text-left {
+    text-align: left;
+}
+
+th.sortable {
+    cursor: pointer;
+    position: relative;
+    padding-right: 20px; /* Space for the sort icon */
+}
+
+th.sortable::after {
+    content: '';
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+}
+
+th.sortable.ascending::after {
+    border-bottom-color: white; /* Or your desired color */
+}
+
+th.sortable.descending::after {
+    border-top-color: white; /* Or your desired color */
+}
+

@@ -98,4 +98,4 @@ const AssetPriceChart: React.FC<AssetPriceChartProps> = ({ chartData, assetName,
     );
 };
 
-export default AssetPriceChart;
+export default React.memo(AssetPriceChart);

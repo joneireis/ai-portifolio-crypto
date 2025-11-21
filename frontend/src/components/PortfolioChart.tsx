@@ -208,4 +208,4 @@ const PortfolioChart = () => {
     );
 };
 
-export default PortfolioChart;
+export default React.memo(PortfolioChart);

@@ -105,4 +105,4 @@ const CostValueChart: React.FC<CostValueChartProps> = ({ assets }) => {
     );
 };
 
-export default CostValueChart;
+export default React.memo(CostValueChart);

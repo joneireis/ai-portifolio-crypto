@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import AssetAllocationChart from './AssetAllocationChart';
 import CostValueChart from './CostValueChart';
@@ -17,6 +17,7 @@ interface Asset {
     valor_total: number;
     pl_nao_realizado: number;
     pl_24h_change: number;
+    pl_monetary: number;
 }
 
 interface PortfolioData {
@@ -25,20 +26,35 @@ interface PortfolioData {
     total_pl: number;
 }
 
+type SortDirection = 'ascending' | 'descending';
+
+interface SortConfig {
+    key: keyof Asset;
+    direction: SortDirection;
+}
+
 const Portfolio: React.FC = () => {
     const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
     const [chartData, setChartData] = useState<any>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'valor_total', direction: 'descending' });
 
     const fetchPortfolioData = useCallback(async () => {
         setIsRefreshing(true);
         try {
             const response = await axios.get('/api/portfolio/');
-            setPortfolioData(response.data);
+            const portfolio = response.data;
+            
+            const assetsWithMonetaryPL = portfolio.assets.map((asset: Asset) => ({
+                ...asset,
+                pl_monetary: asset.valor_total - asset.custo_total,
+            }));
 
-            const assetsToFetch = response.data.assets
+            setPortfolioData({ ...portfolio, assets: assetsWithMonetaryPL });
+
+            const assetsToFetch = assetsWithMonetaryPL
                 .filter((asset: Asset) => {
                     const stablecoins = ['usd', 'usdc', 'usdt', 'dai'];
                     return asset.quantidade > 0 && !stablecoins.includes(asset.id_api_precos);
@@ -54,7 +70,7 @@ const Portfolio: React.FC = () => {
                     const bulkChartData = chartResponse.data;
                     const newChartData: { [key: string]: any } = {};
 
-                    for (const asset of response.data.assets) {
+                    for (const asset of assetsWithMonetaryPL) {
                         const assetId = asset.id_api_precos;
                         if (bulkChartData[assetId] && bulkChartData[assetId].prices) {
                             newChartData[assetId] = {
@@ -91,20 +107,49 @@ const Portfolio: React.FC = () => {
         }
     }, []);
 
-    // Efeito para a carga inicial
     useEffect(() => {
         fetchPortfolioData();
     }, [fetchPortfolioData]);
 
-    // Efeito para o auto-refresh a cada 5 minutos
     useEffect(() => {
         const interval = setInterval(() => {
             console.log("Atualizando dados automaticamente...");
             fetchPortfolioData();
-        }, 300000); // 5 minutos
+        }, 300000); 
 
-        return () => clearInterval(interval); // Limpa o intervalo ao desmontar o componente
+        return () => clearInterval(interval);
     }, [fetchPortfolioData]);
+
+    const sortedAssets = useMemo(() => {
+        let sortableAssets = portfolioData ? [...portfolioData.assets] : [];
+        if (sortConfig !== null) {
+            sortableAssets.sort((a, b) => {
+                if (a[sortConfig.key] < b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (a[sortConfig.key] > b[sortConfig.key]) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableAssets;
+    }, [portfolioData, sortConfig]);
+
+    const requestSort = (key: keyof Asset) => {
+        let direction: SortDirection = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortClassName = (key: keyof Asset) => {
+        if (!sortConfig) {
+            return '';
+        }
+        return sortConfig.key === key ? sortConfig.direction : '';
+    };
 
     if (loading) {
         return <div className="portfolio-dashboard">Carregando portfólio...</div>;
@@ -114,7 +159,7 @@ const Portfolio: React.FC = () => {
         return <div className="portfolio-dashboard error-message">{error}</div>;
     }
 
-    if (!portfolioData || !portfolioData.assets) {
+    if (!portfolioData || !sortedAssets) {
         return <div className="portfolio-dashboard">Nenhum dado de portfólio disponível.</div>;
     }
 
@@ -163,7 +208,7 @@ const Portfolio: React.FC = () => {
 
                 <div className="chart-card-full">
                     <div className="charts-grid">
-                        {userAssets.map((asset, index) => (
+                        {userAssets.map((asset) => (
                             <div key={asset.id} className="chart-card">
                                 <AssetPriceChart
                                     assetName={asset.nome}
@@ -180,33 +225,59 @@ const Portfolio: React.FC = () => {
             <table>
                 <thead>
                     <tr>
-                        <th>Ativo</th>
-                        <th>Símbolo</th>
-                        <th>Quantidade</th>
-                        <th>Preço Médio</th>
-                        <th>Preço Atual</th>
-                        <th>Valor Total</th>
-                        <th>P/L Não Realizado (%)</th>
+                        <th className="text-left">Ativo</th>
+                        <th className="text-center">Símbolo</th>
+                        <th 
+                            className={`text-center sortable ${getSortClassName('quantidade')}`}
+                            onClick={() => requestSort('quantidade')}
+                        >
+                            Quantidade
+                        </th>
+                        <th 
+                            className={`text-center sortable ${getSortClassName('preco_medio')}`}
+                            onClick={() => requestSort('preco_medio')}
+                        >
+                            Preço Médio
+                        </th>
+                        <th 
+                            className={`text-center sortable ${getSortClassName('preco_atual')}`}
+                            onClick={() => requestSort('preco_atual')}
+                        >
+                            Preço Atual
+                        </th>
+                        <th 
+                            className={`text-center sortable ${getSortClassName('valor_total')}`}
+                            onClick={() => requestSort('valor_total')}
+                        >
+                            Valor Total
+                        </th>
+                        <th 
+                            className={`text-center sortable ${getSortClassName('pl_nao_realizado')}`}
+                            onClick={() => requestSort('pl_nao_realizado')}
+                        >
+                            P/L Não Realizado
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
-                    {userAssets.length > 0 ? (
-                        userAssets.map(asset => (
+                    {sortedAssets.length > 0 ? (
+                        sortedAssets.map(asset => (
                             <tr key={asset.id}>
-                                <td>{asset.nome}</td>
-                                <td>{asset.simbolo}</td>
-                                <td>{asset.quantidade.toLocaleString()}</td>
-                                <td>${asset.preco_medio.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td>${asset.preco_atual.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td>${asset.valor_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td style={{ color: asset.pl_nao_realizado >= 0 ? '#2ecc71' : '#e74c3c' }}>
-                                    {`${asset.pl_nao_realizado.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}
+                                <td className="text-left">{asset.nome}</td>
+                                <td className="text-center">{asset.simbolo}</td>
+                                <td className="text-center">{asset.quantidade.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</td>
+                                <td className="text-center">${asset.preco_medio.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="text-center">${asset.preco_atual.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="text-center">${asset.valor_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className={`text-center`} style={{ color: asset.pl_nao_realizado >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                                    <div>{`${asset.pl_nao_realizado.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`}</div>
+                                    <div>{`$${asset.pl_monetary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
                                 </td>
                             </tr>
                         ))
                     ) : (
                         <tr>
-                            <td colSpan={7}>Nenhum ativo para exibir.</td>
+                            <td colSpan={7} className="text-center">Nenhum ativo para exibir.</td>
                         </tr>
                     )}
                 </tbody>
@@ -214,6 +285,5 @@ const Portfolio: React.FC = () => {
         </div>
     );
 };
-
 
 export default Portfolio;
