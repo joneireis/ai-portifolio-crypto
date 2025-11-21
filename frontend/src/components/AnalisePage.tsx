@@ -1,6 +1,8 @@
 // src/components/AnalisePage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import DcaGaugeChart from './DcaGaugeChart';
+import AssetPriceChart from './AssetPriceChart'; // Importa o novo gráfico
 
 // Define a interface para um único indicador
 interface Indicador {
@@ -18,8 +20,15 @@ interface DadosSimulados {
     precoMedioDCA: string;
 }
 
+interface Ativo {
+    id: number;
+    nome: string;
+    simbolo: string;
+    id_api_precos: string;
+}
+
 // Função para gerar dados simulados de indicadores
-const gerarIndicadoresSimulados = (ativo: string): DadosSimulados => {
+const gerarIndicadoresSimulados = (basePrice: number): DadosSimulados => {
     const statuses: { status: string, class: 'alerta' | 'neutro' | 'compra' }[] = [
         { status: 'Alerta', class: 'alerta' },
         { status: 'Neutro', class: 'neutro' },
@@ -29,8 +38,6 @@ const gerarIndicadoresSimulados = (ativo: string): DadosSimulados => {
     const randomStatus = () => statuses[Math.floor(Math.random() * statuses.length)];
     const randomValue = (base: number, percentRange: number) => (base * (1 + (Math.random() - 0.5) * percentRange));
     const randomInt = (max: number) => Math.floor(Math.random() * max);
-
-    const basePrice = ativo === 'BTC' ? 60000 : 3000;
 
     return {
         tecnicos: [
@@ -100,126 +107,244 @@ const gerarIndicadoresSimulados = (ativo: string): DadosSimulados => {
 
 // Componente para a página de Análise Cíclica e On-Chain
 const AnalisePage = () => {
-    // Estado para o ativo selecionado no dropdown
-    const [selectedAsset, setSelectedAsset] = useState('BTC');
-    // Estado para o horário atual
+    const [assets, setAssets] = useState<Ativo[]>([]);
+    const [selectedAssetId, setSelectedAssetId] = useState<string>('');
+    const [selectedAssetPrice, setSelectedAssetPrice] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
-    // Estado para controlar qual indicador está expandido
     const [expandedIndicator, setExpandedIndicator] = useState<string | null>(null);
-    // Estado para controlar a expansão da explicação do gráfico Gauge
     const [expandedGaugeExplanation, setExpandedGaugeExplanation] = useState(false);
-    // Estado para os dados dos indicadores
-    const [dadosIndicadores, setDadosIndicadores] = useState<DadosSimulados>(gerarIndicadoresSimulados(selectedAsset));
+    const [dadosIndicadores, setDadosIndicadores] = useState<DadosSimulados | null>(null);
+    const [chartData, setChartData] = useState<any>(null); // Estado para o gráfico de preço
+    const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
+    const fetchData = useCallback(async (isManualRefresh = false) => {
+        if (!selectedAssetId) return;
+        if (isManualRefresh) {
+            setIsRefreshing(true);
+        }
+        
+        console.log(`Buscando dados para ${selectedAssetId}...`);
+        try {
+            const [priceResponse, chartResponse, fngResponse] = await Promise.all([
+                axios.get(`/api/ativos/price/${selectedAssetId}`),
+                axios.get(`/api/ativos/charts/bulk?ids=${selectedAssetId}&days=30`),
+                axios.get('https://api.alternative.me/fng/')
+            ]);
+
+            const currentPrice = priceResponse.data.price;
+            setSelectedAssetPrice(currentPrice);
+
+            const bulkChartData = chartResponse.data;
+            const assetChartData = bulkChartData[selectedAssetId];
+            const selectedAsset = assets.find(a => a.id_api_precos === selectedAssetId);
+
+            if (assetChartData && assetChartData.prices) {
+                setChartData({
+                    labels: assetChartData.prices.map((price: [number, number]) => price[0]),
+                    datasets: [{
+                        label: `Preço de ${selectedAsset?.nome || ''}`,
+                        data: assetChartData.prices.map((price: [number, number]) => price[1]),
+                        borderColor: '#1cc88a',
+                        backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                    }],
+                });
+            } else {
+                setChartData(null);
+            }
+
+            const fngData = fngResponse.data.data[0];
+            const fngIndicator: Indicador = {
+                nome: 'Medo e Ganância',
+                valor: fngData.value,
+                status: fngData.value_classification,
+                statusClass: fngData.value > 55 ? 'alerta' : (fngData.value < 25 ? 'compra' : 'neutro'),
+                explicacao: 'O Índice de Medo e Ganância (Fear & Greed Index) mede o sentimento do mercado. Valores altos (Ganância) sugerem que o mercado está eufórico e pode ser devido a uma correção, enquanto valores baixos (Medo) podem indicar uma oportunidade de compra.'
+            };
+
+            if (selectedAsset) {
+                const simulatedData = gerarIndicadoresSimulados(currentPrice);
+                const onChainIndicators = simulatedData.onChain.map(indicator => 
+                    indicator.nome === 'Medo e Ganância' ? fngIndicator : indicator
+                );
+                setDadosIndicadores({ ...simulatedData, onChain: onChainIndicators });
+            }
+
+        } catch (error) {
+            console.error("Falha ao buscar dados da análise", error);
+        } finally {
+            if (isManualRefresh) {
+                setIsRefreshing(false);
+            }
+        }
+    }, [selectedAssetId, assets]);
+
+
+    // Efeito para a carga inicial dos ativos
+    useEffect(() => {
+        const fetchInitialAssets = async () => {
+            setLoading(true);
+            try {
+                const response = await axios.get('/api/ativos/');
+                const fetchedAssets: Ativo[] = response.data;
+                setAssets(fetchedAssets);
+                if (fetchedAssets.length > 0) {
+                    setSelectedAssetId(fetchedAssets[0].id_api_precos);
+                }
+            } catch (error) {
+                console.error("Falha ao carregar lista de ativos", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialAssets();
+    }, []);
+
+    // Efeito para buscar dados quando o ativo selecionado muda e para o auto-refresh
+    useEffect(() => {
+        if (selectedAssetId) {
+            fetchData();
+        }
+
+        const refreshInterval = setInterval(() => {
+            if (selectedAssetId) {
+                fetchData();
+            }
+        }, 60000); // Atualiza a cada 1 minuto
+
+        return () => clearInterval(refreshInterval);
+    }, [selectedAssetId, fetchData]);
 
     // Efeito para atualizar o relógio a cada segundo
     useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentTime(new Date());
-        }, 1000);
-        // Limpa o intervalo quando o componente é desmontado
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    // Efeito para atualizar os indicadores quando o ativo mudar
-    useEffect(() => {
-        setDadosIndicadores(gerarIndicadoresSimulados(selectedAsset));
-    }, [selectedAsset]);
+    const formatTime = (date: Date) => date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
 
-    // Função para formatar o horário
-    const formatTime = (date: Date) => {
-        return date.toLocaleTimeString('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-        });
-    };
-
-    // Função para alternar a visibilidade da explicação de um indicador
     const toggleExplicacao = (nome: string) => {
         setExpandedIndicator(prev => (prev === nome ? null : nome));
     };
 
-    // Função para alternar a visibilidade da explicação do gráfico Gauge
     const toggleGaugeExplanation = () => {
         setExpandedGaugeExplanation(prev => !prev);
     };
+
+    const selectedAsset = assets.find(a => a.id_api_precos === selectedAssetId);
+
+    if (loading) {
+        return <div className="portfolio-dashboard">Carregando...</div>;
+    }
 
     return (
         <div className="portfolio-dashboard">
             <div className="dashboard-header">
                 <h3>Análise Cíclica e On-Chain</h3>
                 <div className="header-controls">
-                    {/* Relógio Online */}
                     <div className="clock">
                         <span>{formatTime(currentTime)}</span>
                     </div>
-                    {/* Seletor de Ativo */}
+                    <button 
+                        className={`refresh-button ${isRefreshing ? 'refreshing' : ''}`} 
+                        onClick={() => fetchData(true)}
+                        disabled={isRefreshing}
+                    >
+                        <span className="refresh-icon">↻</span>
+                        {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+                    </button>
                     <div className="asset-selector">
                         <label htmlFor="asset-select">Ativo:</label>
                         <select
                             id="asset-select"
-                            value={selectedAsset}
-                            onChange={(e) => setSelectedAsset(e.target.value)}
+                            value={selectedAssetId}
+                            onChange={(e) => setSelectedAssetId(e.target.value)}
                         >
-                            {/* TODO: Popular dinamicamente com ativos do portfólio */}
-                            <option value="BTC">Bitcoin (BTC)</option>
-                            <option value="ETH">Ethereum (ETH)</option>
+                            {assets.map(asset => (
+                                <option key={asset.id} value={asset.id_api_precos}>
+                                    {asset.nome} ({asset.simbolo})
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>
             </div>
 
-            {/* Gráfico de Medidor DCA Tático */}
-            <DcaGaugeChart 
-                isExpanded={expandedGaugeExplanation} 
-                onToggleExpand={toggleGaugeExplanation} 
-                precoMedioDCA={dadosIndicadores.precoMedioDCA}
-            />
+            {selectedAsset && (
+                 <div className="analise-price-section">
+                    <div className="asset-price-display">
+                        <h2>{selectedAsset.nome} ({selectedAsset.simbolo})</h2>
+                        <h1>
+                            {selectedAssetPrice !== null
+                                ? `$${selectedAssetPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : 'Carregando preço...'
+                            }
+                        </h1>
+                    </div>
+                    <div className="chart-card-full">
+                        <AssetPriceChart
+                            assetName={selectedAsset.nome}
+                            assetPrice={selectedAssetPrice || 0}
+                            chartData={chartData} 
+                            pl_24h_change={0}
+                        />
+                    </div>
+                 </div>
+            )}
 
-            <div className="charts-section">
-                {/* Painel de Indicadores Técnicos */}
-                <div className="chart-card">
-                    <h4>Indicadores Técnicos</h4>
-                    <ul className="indicator-list">
-                        {dadosIndicadores.tecnicos.map((indicador) => (
-                            <li key={indicador.nome} className="indicator-item-wrapper">
-                                <div className="indicator-item" onClick={() => toggleExplicacao(indicador.nome)}>
-                                    <span className="indicator-name">{indicador.nome}</span>
-                                    <span className="indicator-value">{indicador.valor}</span>
-                                    <span className={`indicator-status ${indicador.statusClass}`}>{indicador.status}</span>
-                                </div>
-                                {expandedIndicator === indicador.nome && (
-                                    <div className="indicator-explanation">
-                                        <p>{indicador.explicacao}</p>
-                                    </div>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-
-                {/* Painel de Indicadores On-Chain */}
-                <div className="chart-card">
-                    <h4>Indicadores On-Chain</h4>
-                    <ul className="indicator-list">
-                        {dadosIndicadores.onChain.map((indicador) => (
-                             <li key={indicador.nome} className="indicator-item-wrapper">
-                                <div className="indicator-item" onClick={() => toggleExplicacao(indicador.nome)}>
-                                    <span className="indicator-name">{indicador.nome}</span>
-                                    <span className="indicator-value">{indicador.valor}</span>
-                                    <span className={`indicator-status ${indicador.statusClass}`}>{indicador.status}</span>
-                                </div>
-                                {expandedIndicator === indicador.nome && (
-                                    <div className="indicator-explanation">
-                                        <p>{indicador.explicacao}</p>
-                                    </div>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
+            {dadosIndicadores && (
+                <>
+                    <DcaGaugeChart 
+                        isExpanded={expandedGaugeExplanation} 
+                        onToggleExpand={toggleGaugeExplanation} 
+                        precoMedioDCA={dadosIndicadores.precoMedioDCA}
+                    />
+                    <div className="charts-section">
+                        <div className="chart-card">
+                            <h4>Indicadores Técnicos</h4>
+                            <ul className="indicator-list">
+                                {dadosIndicadores.tecnicos.map((indicador) => (
+                                    <li key={indicador.nome} className="indicator-item-wrapper">
+                                        <div className="indicator-item" onClick={() => toggleExplicacao(indicador.nome)}>
+                                            <span className="indicator-name">{indicador.nome}</span>
+                                            <span className="indicator-value">{indicador.valor}</span>
+                                            <span className={`indicator-status ${indicador.statusClass}`}>{indicador.status}</span>
+                                        </div>
+                                        {expandedIndicator === indicador.nome && (
+                                            <div className="indicator-explanation"><p>{indicador.explicacao}</p></div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="chart-card">
+                            <h4>Indicadores On-Chain</h4>
+                            <ul className="indicator-list">
+                                {dadosIndicadores.onChain.map((indicador) => (
+                                     <li key={indicador.nome} className="indicator-item-wrapper">
+                                        <div className="indicator-item" onClick={() => toggleExplicacao(indicador.nome)}>
+                                            <span className="indicator-name">{indicador.nome}</span>
+                                            <span className="indicator-value">{indicador.valor}</span>
+                                            <span className={`indicator-status ${indicador.statusClass}`}>{indicador.status}</span>
+                                        </div>
+                                        {expandedIndicator === indicador.nome && (
+                                            <div className="indicator-explanation"><p>{indicador.explicacao}</p></div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
